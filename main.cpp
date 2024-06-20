@@ -1,24 +1,25 @@
 #include <iostream>
 #include <vector>
 #include <cmath>
+#include <initializer_list>
 
 template <class T>
 using VECTOR = std::vector<T>;
 
 template <class T>
-using MASSIVE = std::vector<VECTOR<T>>;
+using MASSIVE = std::vector<std::vector<T>>;
 
 template <class T>
 class MATRIX
 {
     // Матрица организована как вектор строк(row),
     // т.е. сначала идет строка, потом обращение к колонке
-
 protected:
     unsigned int rows_, columns_;
     MASSIVE<T> data;
+
 public:
-    MATRIX() : rows_(0), columns_(0){};
+    MATRIX() = default;
 
     MATRIX(int rows, int columns)
     {
@@ -30,15 +31,22 @@ public:
             row.resize(columns);
         }
     };
-    MATRIX(std::initializer_list<std::initializer_list<T>> matr) : data(matr){};
-
-    MATRIX(const MATRIX &MATRIX)
+    MATRIX(const std::vector<std::vector<T>> matr)
     {
-        for (int i = 0; i < MATRIX.getRowCount(); i++)
+        data = matr;
+        this->rows_ = matr.size();
+        this->columns_ = matr[0].size();
+    };
+
+    MATRIX(const MATRIX &m)
+    {
+        this->rows_ = m.rows_;
+        this->columns_ = m.columns_;
+        for (int i = 0; i < m.rows_; i++)
         {
-            for (int j = 0; j < MATRIX.getColCount(); j++)
+            for (int j = 0; j < m.columns_; j++)
             {
-                this->data[i][j] = MATRIX[i][j];
+                this->data[i][j] = m.data[i][j];
             }
         }
     };
@@ -102,7 +110,7 @@ public:
         {
             for (int j = 0; j < columns_; j++)
             {
-                std::cout << data[i][j] << ' ';
+                std::cout << this->data[i][j] << ' ';
             }
             std::cout << std::endl;
         }
@@ -194,30 +202,27 @@ public:
 
     MATRIX M(int row, int col) // Матрицу минора для элемента по его индексу
     {
-        MATRIX ans(this->rows_ - 1, this->columns_ - 1);
-        int iFullMatr, jFullMatr;
-        for (int i = 0, iFullMatr = 0; i < this->rows_ - 1; i++, iFullMatr++)
+        MATRIX res(rows_ - 1, columns_ - 1);
+        int ri = 0, rj = 0;
+        for (int i = 0; i < rows_; ++i)
         {
-            if (iFullMatr == row)
+            if (i != row)
             {
-                iFullMatr++;
-                continue;
-            }
-            for (int j = 0, jFullMatr = 0; j < this->columns_ - 1; j++, jFullMatr++)
-            {
-                if (jFullMatr == col)
+                for (int j = 0; j < columns_; ++j)
                 {
-                    jFullMatr++;
-                    continue;
+                    if (j != col)
+                        res(ri, rj++) = data[i][j];
                 }
-                ans.data[i][j] = this->data[iFullMatr][jFullMatr];
+                rj = 0;
+                ri++;
             }
         }
+        return res;
     };
 
     T Minor(int row, int col)
     { // Возвращает определитель М. минора для элемента
-        return this->M().det();
+        return this->M(row, col).det();
     };
 
     MATRIX MMatr()
@@ -227,9 +232,10 @@ public:
         {
             for (int j = 0; j < this->columns_; j++)
             {
-                ans[i][j] = this->Minor(i, j);
+                ans.data[i][j] = this->Minor(i, j);
             }
         }
+        return ans;
     }; // Матрица минора для элементов
 
     T ad(int row, int col)
@@ -248,19 +254,6 @@ public:
         }
         return ans;
     }; // Матрица алгебраических дополнений
-    MATRIX inv()
-    {
-        if (!isSqr())
-        {
-            return MATRIX(0, 0);
-        }
-        T determinate = det();
-        if (determinate == 0)
-        {
-            return MATRIX(0, 0);
-        }
-        return adMatr().TRANS() / determinate;
-    }; // Обратная матрица
 
     bool isE()
     {
@@ -279,23 +272,7 @@ public:
         return this->rows_ == this->columns_;
     }; // Квадратная ли матрица?
 
-    static MATRIX solve(const MATRIX &A, const MATRIX &B)
-    {
-        MATRIX invA = A.inv();
-        MATRIX ans(invA.getRowCount(), B.getColCount());
-        for (int i = 0; i < invA.getRowCount(); i++)
-        {
-            for (int j = 0; j < B.getColCount(); j++)
-            {
-                ans.data[i][j] = 0;
-                for (int k = 0; k < invA.getColCount(); k++)
-                {
-                    ans.data[i][j] += invA.data[i][k] * B.data[k][j];
-                }
-            }
-        }
-        return ans;
-    }; // Решение матричного уравнения A*X=B
+    
 
 public:
     T &operator()(int row, int col)
@@ -307,13 +284,13 @@ public:
         return this->data[row][col];
     }; // для константных объектов
 
-    MATRIX &operator=(const MATRIX &MATRIX)
+    MATRIX &operator=(const MATRIX &m)
     {
         for (int i = 0; i < rows_; i++)
         {
             for (int j = 0; j < columns_; j++)
             {
-                this->data[i][j] = MATRIX[i][j];
+                this->data[i][j] = m.data[i][j];
             }
         }
         return *this;
@@ -354,26 +331,23 @@ public:
     };
     MATRIX operator/(const double &l)
     {
-        for (int i = 0; i < rows_; i++)
-        {
-            for (int j = 0; j < columns_; j++)
-            {
-                this->data[i][j] /= l;
-            }
-        }
-        return *this;
+        MATRIX res(rows_, columns_);
+        for(int i = 0; i < rows_; ++i)
+            for(int j = 0; j < columns_; ++j)
+                res.data[i][j] = this->data[i][j]/l;
+        return res;
     };
 
     friend MATRIX operator*(const MATRIX &Matr1, const MATRIX &Matr2)
     {
-        MATRIX ans(Matr1.getRowCount(), Matr2.getColCount());
-        for (int i = 0; i < Matr1.getRowCount(); i++)
+        MATRIX ans(Matr1.rows_, Matr2.columns_);
+        for (int i = 0; i < Matr1.rows_; i++)
         {
-            for (int j = 0; j < Matr2.getColCount(); j++)
+            for (int j = 0; j < Matr2.columns_; j++)
             {
                 ans.data[i][j] = 0;
 
-                for (int k = 0; k < Matr1.getRowCount(); k++)
+                for (int k = 0; k < Matr1.columns_; k++)
                 {
                     ans.data[i][j] += Matr1.data[i][k] * Matr2.data[k][j];
                 }
@@ -390,6 +364,7 @@ public:
                 Matr.data[i][j] *= num;
             }
         }
+        return Matr;
     };
 
     friend bool operator==(const MATRIX &m1, const MATRIX &m2)
@@ -431,8 +406,63 @@ public:
         }
     };
 
-    friend std::istream &operator>>(std::istream &, MATRIX &);
-    friend std::ostream &operator<<(std::ostream &, const MATRIX &);
+    friend std::istream &operator>>(std::istream &in, MATRIX &m)
+    {
+        for (const auto &row : m.data)
+        {
+            for (const auto &elem : row)
+            {
+                in >> elem << "\t";
+            }
+        }
+        return in;
+    };
+
+    friend std::ostream &operator<<(std::ostream &out, const MATRIX &m)
+    {
+        for (const auto &row : m.data)
+        {
+            for (const auto &elem : row)
+            {
+                out << elem << "\t";
+            }
+            out << std::endl;
+        }
+        return out;
+    };
+    
+    
+    MATRIX inv()
+    {
+        if (!isSqr())
+        {
+            return MATRIX(0, 0);
+        }
+        T determinate = this->det();
+        if (determinate == 0)
+        {
+            return MATRIX(0, 0);
+        }
+        return this->adMatr().TRANS() / determinate;
+    }; // Обратная матрица
+
+    static MATRIX solve(const MATRIX &A, const MATRIX &B)
+    {
+        MATRIX invA = A.inv();
+        MATRIX ans(invA.getRowCount(), B.getColCount());
+        for (int i = 0; i < invA.getRowCount(); i++)
+        {
+            for (int j = 0; j < B.getColCount(); j++)
+            {
+                ans.data[i][j] = 0;
+                for (int k = 0; k < invA.getColCount(); k++)
+                {
+                    ans.data[i][j] += invA.data[i][k] * B.data[k][j];
+                }
+            }
+        }
+        return ans;
+    }; // Решение матричного уравнения A*X=B
 };
 
 template <class T>
@@ -467,6 +497,33 @@ public:
 
 int main()
 {
-    std::cout << "Hello, world!" << std::endl;
+    std::vector<std::vector<double>> a = {{1, 3, 5}, {2, 4, 6}, {7, 8, 10}};
+    MATRIX<double> A(a);
+
+    std::cout << "Start Matrix: \n";
+    A.print();
+    std::cout << "\n";
+
+    std::cout << "Transopned matrix: \n";
+    A.TRANS().print();
+    std::cout << "\n";
+
+    std::cout << "Determinant A:\t" << A.det() << std::endl
+              << std::endl;
+
+    std::cout << "MMatrix: \n";
+    A.MMatr().print();
+
+    std::cout << "alg add: \n";
+    A.adMatr().print();
+    
+    std::cout<< "inverse matrix: \n";
+    A.inv().print();
+    std::cout<<std::endl;
+    MATRIX<double> B = A.inv();
+
+    std::cout<<"proverka\n";
+    MATRIX<double> C = A*B;
+    C.print();
     return 0;
 }
