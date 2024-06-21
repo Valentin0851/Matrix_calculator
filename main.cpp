@@ -1,207 +1,222 @@
 #include <iostream>
 #include <vector>
+#include <string>
+#include <sstream>
 #include <cmath>
-#include <initializer_list>
 
-template <class T>
-using VECTOR = std::vector<T>;
+using VECTOR = std::vector<double>;
 
-template <class T>
-using MASSIVE = std::vector<std::vector<T>>;
+using MASSIVE = std::vector<VECTOR>;
 
-template <class T>
 class MATRIX
 {
-    // Матрица организована как вектор строк(row),
-    // т.е. сначала идет строка, потом обращение к колонке
-protected:
-    unsigned int rows_, columns_;
-    MASSIVE<T> data;
-
 public:
-    MATRIX() = default;
+    MASSIVE data;
+    int rows_;
+    int columns_;
+    // Конструкторы
 
-    MATRIX(int rows, int columns)
+    MATRIX() : rows_(0), columns_(0) {}
+
+    MATRIX(int rows_, int columns_) : rows_(rows_), columns_(columns_), data(rows_, VECTOR(columns_)) {}
+
+    MATRIX(const std::vector<VECTOR> &data) : data(data), rows_(data.size()), columns_(data[0].size()) {}
+
+    MATRIX(const MATRIX &other) : data(other.data), rows_(other.rows_), columns_(other.columns_) {}
+
+    ~MATRIX() {}
+
+    // Геттеры, Сеттеры
+
+    int getRows() const { return rows_; }
+    int getCols() const { return columns_; }
+    int getDim() const { return getRows() * getCols(); }
+    double getElement(int row, int col) const { return data[row][col]; }
+    VECTOR getRow(int row) const { return data[row]; }
+    VECTOR getCol(int col) const
     {
-        this->rows_ = rows;
-        this->columns_ = columns;
-        this->data.resize(rows);
-        for (auto &row : data)
+        VECTOR colMatr(getRows());
+        for (int i = 0; i < getRows(); ++i)
+            colMatr[i] = data[i][col];
+        return colMatr;
+    }
+    std::vector<VECTOR> getMatr() const { return data; }
+    std::string toString() const
+    {
+        std::stringstream ss;
+        for (const auto &row : data)
         {
-            row.resize(columns);
+            for (const auto &elem : row)
+                ss << elem << " ";
+            ss << "\n";
         }
-    };
-    MATRIX(const std::vector<std::vector<T>> matr)
-    {
-        data = matr;
-        this->rows_ = matr.size();
-        this->columns_ = matr[0].size();
-    };
+        return ss.str();
+    }
 
-    MATRIX(const MATRIX &m)
+    void setElement(int i, int j, double val)
     {
-        this->rows_ = m.rows_;
-        this->columns_ = m.columns_;
-        for (int i = 0; i < m.rows_; i++)
+        if (i >= 0 && i < rows_ && j >= 0 && j < columns_)
+            data[i][j] = val;
+        else
+            std::cout << "Invaled row or column index." << std::endl;
+    }
+    void setRow(int r, const VECTOR &val)
+    {
+        if (r >= 0 && r < rows_ && val.size() == columns_)
         {
-            for (int j = 0; j < m.columns_; j++)
+            for (int i = 0; i < columns_; ++i)
+                data[r][i] = val[i];
+        }
+        else
+            std::cout << "Invalid row index or value size." << std::endl;
+    }
+    void setCol(int c, const VECTOR &val)
+    {
+        if (c >= 0 && c < columns_ && val.size() == rows_)
+        {
+            for (int i = 0; i < rows_; ++i)
+                data[i][c] = val[i];
+        }
+        else
+            std::cout << "Invalid row index or value size." << std::endl;
+    }
+
+    // Перегрузка операторов
+
+    double &operator()(int i, int j) { return data[i][j]; }      // изменение значения эл-та через оператор ()
+    double operator()(int i, int j) const { return data[i][j]; } // получение значения эл-та через оператор ()
+    MATRIX operator+(const MATRIX &other) const
+    { // сложение матриц
+        if (rows_ != other.rows_ || columns_ != other.columns_)
+            std::cout << "These matrices cannot be folded." << std::endl;
+        MATRIX res(rows_, columns_);
+        for (int i = 0; i < rows_; ++i)
+            for (int j = 0; j < columns_; ++j)
+                res(i, j) = data[i][j] + other(i, j);
+        return res;
+    }
+    MATRIX operator-(const MATRIX &other) const
+    { // вычитание матриц
+        if (rows_ != other.rows_ || columns_ != other.columns_)
+            std::cout << "These matrices cannot be subtracted." << std::endl;
+        MATRIX res(rows_, columns_);
+        for (int i = 0; i < rows_; ++i)
+            for (int j = 0; j < columns_; ++j)
+                res(i, j) = data[i][j] - other(i, j);
+        return res;
+    }
+    MATRIX operator*(const MATRIX &other) const
+    { // умножение матриц
+        if (columns_ != other.rows_)
+            std::cout << "MATRIX dimensions are not compatible for multiplicztion." << std::endl;
+        MATRIX res(rows_, other.columns_);
+        for (int i = 0; i < rows_; ++i)
+        {
+            for (int j = 0; j < other.columns_; ++j)
             {
-                this->data[i][j] = m.data[i][j];
+                double sum = 0;
+                for (int k = 0; k < columns_; ++k)
+                    sum += data[i][k] * other(k, j);
+                res(i, j) = sum;
             }
         }
-    };
+        return res;
+    }
+    bool operator==(const MATRIX &other) const
+    { // равенство матриц
+        if (rows_ != other.rows_ || columns_ != other.columns_)
+            return false;
+        for (int i = 0; i < rows_; ++i)
+            for (int j = 0; j < columns_; ++j)
+                if (data[i][j] != other(i, j))
+                    return false;
+        return true;
+    }
+    bool operator!=(const MATRIX &other) const { return !(*this == other); } // неравенство матриц
+    MATRIX operator*(double scalar) const
+    { // умножение матрицы на число
+        MATRIX res(rows_, columns_);
+        for (int i = 0; i < rows_; ++i)
+            for (int j = 0; j < columns_; ++j)
+                res(i, j) = data[i][j] * scalar;
+        return res;
+    }
+    MATRIX operator/(double scalar) const
+    { // деление матрицы на число
+        if (scalar == 0)
+            std::cout << "The division cannot be performed." << std::endl;
+        MATRIX res(rows_, columns_);
+        for (int i = 0; i < rows_; ++i)
+            for (int j = 0; j < columns_; ++j)
+                res(i, j) = data[i][j] / scalar;
+        return res;
+    }
 
-    ~MATRIX() = default;
+    // Работа с Матрицами
 
-    int getRowCount()
-    {
-        return this->rows_;
-    };
-    int rowLen() const
-    {
-        return this->columns_;
-    };
-
-    int getColCount()
-    {
-        return this->columns_;
-    };
-    int colLen() const
-    {
-        return this->rows_;
-    };
-
-    std::pair<int, int> dim() const
-    {
-        return {this->rows_, this->columns_};
-    };
-
-    void resize(int newRow, int newCol, bool &isSafeResize = true)
-    {
-        isSafeResize = (newRow > 0) && (newCol > 0);
-        if (isSafeResize)
+    void Resize(int newRows, int newCols, bool preserve = false)
+    { // изменение размерности
+        if (preserve)
         {
-            this->rows_ = newRow;
-            this->columns_ = newCol;
-            this->data.resize(newRow);
-            for (auto &row : data)
+            if (newRows < rows_ || newCols < columns_)
+                std::cout << "Cannot reduce size while preserving data." << std::endl;
+            std::vector<VECTOR> newMatr(newRows, VECTOR(newCols));
+            for (int i = 0; i < rows_; ++i)
+                for (int j = 0; j < columns_; ++j)
+                    newMatr[i][j] = data[i][j];
+            data = newMatr;
+            rows_ = newRows;
+            columns_ = newCols;
+        }
+        else
+        {
+            data.resize(newRows, VECTOR(newCols));
+            rows_ = newRows;
+            columns_ = newCols;
+        }
+    }
+
+    bool isE() const
+    { // проверка: единичная ли матрица
+        if (rows_ != columns_)
+            return false;
+        for (int i = 0; i < rows_; ++i)
+        {
+            for (int j = 0; j < columns_; ++j)
             {
-                row.resize(newCol);
+                if (i == j && data[i][j] != 1)
+                    return false;
+                else if (i != j && data[i][j] != 0)
+                    return false;
             }
         }
-    };
+        return true;
+    }
+    bool isSqr() const { return rows_ == columns_; } // проверка: квадратная ли матрица
 
-    VECTOR<T> toString() const
-    {
-        VECTOR<T> ans;
-        for (int i = 0; i < this->rows_; i++)
-        {
-            for (int j = 0; j < this->columns_; j++)
-            {
-                ans.push_back(this->data[i][j]);
-            }
-        }
-        return ans;
-    };
-
-    void print()
-    {
-        for (int i = 0; i < rows_; i++)
-        {
-            for (int j = 0; j < columns_; j++)
-            {
-                std::cout << this->data[i][j] << ' ';
-            }
-            std::cout << std::endl;
-        }
-    };
-
-    void setItem(int row, int columns, T value)
-    {
-        data[row][columns] = value;
-    };
-
-    void setRow(int rNum, VECTOR<T> row)
-    {
-        for (int i = 0; i < columns_; i++)
-        {
-            data[rNum][i] = row[i];
-        }
-    };
-
-    void setCol(int cNum, VECTOR<T> col)
-    {
-        for (int i = 0; i < rows_; i++)
-        {
-            data[i][cNum] = row[i];
-        }
-    };
-
-    T it(int row, int columns) const
-    {
-        return data[row][columns];
-    };
-
-    VECTOR<T> row(int indx)
-    {
-        VECTOR<T> ans(columns_);
-        for (int i = 0; i < columns_; i++)
-        {
-            ans[i] = data[indx][i];
-        }
-        return ans;
-    };
-
-    VECTOR<T> col(int indx)
-    {
-        VECTOR<T> ans(rows_);
-        for (int i = 0; i < rows_; i++)
-        {
-            ans[i] = data[i][indx];
-        }
-        return ans;
-    };
-
-    const MASSIVE<T> &matr() const { return data; } // для константных объектов
-
-    T det()
-    {
-        if (!this->isSqr())
-        {
+    double det() const
+    { // определитель матрицы
+        if (!isSqr())
             return 0;
-        }
-        if (this->rows_ == 1)
-        {
-            return this->data[0][0];
-        }
-        if (this->rows_ == 2)
-        {
+        if (rows_ == 1)
+            return data[0][0];
+        if (rows_ == 2)
             return data[0][0] * data[1][1] - data[0][1] * data[1][0];
-        }
-        T ans = 0;
-
-        for (int i = 0; i < this->columns_; i++)
-        {
-            ans += (i % 2 == 0 ? 1 : -1) * data[0][i] * Minor(0, i);
-        }
-        return ans;
-    }; // Вычисление определителя
-
-    MATRIX TRANS() // Транспонированная матрица
-    {
-        MATRIX ans(columns_, rows_);
-        for (int i = 0; i < columns_; i++)
-        {
-            for (int j = 0; j < rows_; j++)
-            {
-                ans.data[i][j] = this->data[j][i];
-            }
-        }
-        return ans;
-    };
-
-    MATRIX M(int row, int col) // Матрицу минора для элемента по его индексу
-    {
+        double det = 0.0;
+        for (int i = 0; i < columns_; ++i)
+            det += (i % 2 == 0 ? 1 : -1) * data[0][i] * MMatrix(0, i).det();
+        return det;
+    }
+    MATRIX transp() const
+    { // транспонированная матрица
+        MATRIX res(columns_, rows_);
+        for (int i = 0; i < rows_; ++i)
+            for (int j = 0; j < columns_; ++j)
+                res(j, i) = data[i][j];
+        return res;
+    }
+    MATRIX MMatrix(int row, int col) const
+    { // матрица минора для эл-та по индексу
         MATRIX res(rows_ - 1, columns_ - 1);
         int ri = 0, rj = 0;
         for (int i = 0; i < rows_; ++i)
@@ -218,312 +233,133 @@ public:
             }
         }
         return res;
-    };
-
-    T Minor(int row, int col)
-    { // Возвращает определитель М. минора для элемента
-        return this->M(row, col).det();
-    };
-
-    MATRIX MMatr()
-    {
-        MATRIX ans(this->rows_, this->columns_);
-        for (int i = 0; i < this->rows_; i++)
-        {
-            for (int j = 0; j < this->columns_; j++)
-            {
-                ans.data[i][j] = this->Minor(i, j);
-            }
-        }
-        return ans;
-    }; // Матрица минора для элементов
-
-    T ad(int row, int col)
-    {
-        return std::pow(-1, row + col) * Minor(row, col);
-    }; // Алгебраическое дополнение
-    MATRIX adMatr()
-    {
-        MATRIX ans(this->rows_, this->columns_);
-        for (int i = 0; i < this->rows_; i++)
-        {
-            for (int j = 0; j < this->columns_; j++)
-            {
-                ans.data[i][j] = this->ad(i, j);
-            }
-        }
-        return ans;
-    }; // Матрица алгебраических дополнений
-
-    bool isE()
-    {
-        bool ans = true;
-        for (int i = 0; i < rows_; i++)
-        {
-            for (int j = 0; j < columns_; j++)
-            {
-                ans = ans && ((i == j) && (this->data[i][i] == 1) || (i != j) && (this->data[i][j] == 0));
-            }
-        }
-        return ans;
-    }; // Единичная ли матрица?
-    bool isSqr()
-    {
-        return this->rows_ == this->columns_;
-    }; // Квадратная ли матрица?
-
-    
-
-public:
-    T &operator()(int row, int col)
-    {
-        return this->data[row][col];
-    };
-    const T &operator()(int row, int col) const
-    {
-        return this->data[row][col];
-    }; // для константных объектов
-
-    MATRIX &operator=(const MATRIX &m)
-    {
-        for (int i = 0; i < rows_; i++)
-        {
-            for (int j = 0; j < columns_; j++)
-            {
-                this->data[i][j] = m.data[i][j];
-            }
-        }
-        return *this;
-    };
-
-    MATRIX operator+(const MATRIX &matr)
-    {
-        for (int i = 0; i < rows_; i++)
-        {
-            for (int j = 0; j < columns_; j++)
-            {
-                this->data[i][j] += matr[i][j];
-            }
-        }
-        return *this;
-    };
-    MATRIX operator-(const MATRIX &matr)
-    {
-        for (int i = 0; i < rows_; i++)
-        {
-            for (int j = 0; j < columns_; j++)
-            {
-                this->data[i][j] -= matr[i][j];
-            }
-        }
-        return *this;
-    };
-    MATRIX operator*(const double &l)
-    {
-        for (int i = 0; i < rows_; i++)
-        {
-            for (int j = 0; j < columns_; j++)
-            {
-                this->data[i][j] *= l;
-            }
-        }
-        return *this;
-    };
-    MATRIX operator/(const double &l)
-    {
-        MATRIX res(rows_, columns_);
-        for(int i = 0; i < rows_; ++i)
-            for(int j = 0; j < columns_; ++j)
-                res.data[i][j] = this->data[i][j]/l;
+    }
+    double Minordet(int row, int col) const
+    { // определитель матрицы минора для эл-та по индексу
+        return MMatrix(row, col).det();
+    }
+    MATRIX MatrixMinors() const
+    { // матрица минора для соответствующих эл-там и их индексу
+        MATRIX res(columns_, rows_);
+        for (int i = 0; i < rows_; ++i)
+            for (int j = 0; j < columns_; ++j)
+                res(i, j) = pow(-1, i + j) * Minordet(i, j);
         return res;
-    };
-
-    friend MATRIX operator*(const MATRIX &Matr1, const MATRIX &Matr2)
-    {
-        MATRIX ans(Matr1.rows_, Matr2.columns_);
-        for (int i = 0; i < Matr1.rows_; i++)
+    }
+    double ad(int row, int col) const
+    { // алг доп для эл-та по его индексу
+        return pow(-1, row + col) * Minordet(row, col);
+    }
+    MATRIX adMatrix() const
+    { // матрица алг доп
+        MATRIX res(rows_, columns_);
+        for (int i = 0; i < rows_; ++i)
         {
-            for (int j = 0; j < Matr2.columns_; j++)
+            for (int j = 0; j < columns_; ++j)
             {
-                ans.data[i][j] = 0;
-
-                for (int k = 0; k < Matr1.columns_; k++)
-                {
-                    ans.data[i][j] += Matr1.data[i][k] * Matr2.data[k][j];
-                }
+                res(i, j) = ad(i, j);
             }
         }
-        return ans;
-    };
-    friend MATRIX operator*(const double num, const MATRIX &Matr)
-    {
-        for (int i = 0; i < Matr.getRowCount(); i++)
-        {
-            for (int j = 0; j < Matr.getColCount(); j++)
-            {
-                Matr.data[i][j] *= num;
-            }
-        }
-        return Matr;
-    };
-
-    friend bool operator==(const MATRIX &m1, const MATRIX &m2)
-    {
-        bool ans = (m1.dim().first == m2.dim().first) && (m1.dim().second == m2.dim().second);
-        if (ans)
-        {
-            for (int i = 0; i < m1.getRowCount(); i++)
-            {
-                for (int j = 0; j < m1.getColCount(); j++)
-                {
-                    ans = ans && m1.data[i][j] == m2.data[i][j];
-                }
-            }
-        }
-        return ans;
-    };
-
-    friend bool operator!=(const MATRIX &m1, const MATRIX &m2)
-    {
-        bool ans = (m1.dim().first == m2.dim().first) && (m1.dim().second == m2.dim().second);
-        if (ans)
-        {
-            for (int i = 0; i < m1.getRowCount(); i++)
-            {
-                for (int j = 0; j < m1.getColCount(); j++)
-                {
-                    ans = ans && m1.data[i][j] == m2.data[i][j];
-                }
-            }
-        }
-        if (ans)
-        {
-            return false;
-        }
-        else
-        {
-            return true;
-        }
-    };
-
-    friend std::istream &operator>>(std::istream &in, MATRIX &m)
-    {
-        for (const auto &row : m.data)
-        {
-            for (const auto &elem : row)
-            {
-                in >> elem << "\t";
-            }
-        }
-        return in;
-    };
-
-    friend std::ostream &operator<<(std::ostream &out, const MATRIX &m)
-    {
-        for (const auto &row : m.data)
-        {
-            for (const auto &elem : row)
-            {
-                out << elem << "\t";
-            }
-            out << std::endl;
-        }
-        return out;
-    };
-    
-    
-    MATRIX inv()
-    {
+        return res;
+    }
+    MATRIX inv() const
+    { // обратная матрица
         if (!isSqr())
-        {
             return MATRIX(0, 0);
-        }
-        T determinate = this->det();
-        if (determinate == 0)
-        {
+        double deter = det();
+        if (deter == 0)
             return MATRIX(0, 0);
-        }
-        return this->adMatr().TRANS() / determinate;
-    }; // Обратная матрица
+        return adMatrix().transp() / deter;
+    }
 
-    static MATRIX solve(const MATRIX &A, const MATRIX &B)
-    {
-        MATRIX invA = A.inv();
-        MATRIX ans(invA.getRowCount(), B.getColCount());
-        for (int i = 0; i < invA.getRowCount(); i++)
-        {
-            for (int j = 0; j < B.getColCount(); j++)
-            {
-                ans.data[i][j] = 0;
-                for (int k = 0; k < invA.getColCount(); k++)
-                {
-                    ans.data[i][j] += invA.data[i][k] * B.data[k][j];
-                }
-            }
-        }
-        return ans;
-    }; // Решение матричного уравнения A*X=B
+    friend MATRIX Solve(const MATRIX &A, const MATRIX &B);
+    friend std::ostream &operator<<(std::ostream &out, const MATRIX &m);
 };
 
-template <class T>
-class Vector : public MATRIX<T>
-{
-public:
-    Vector() : MATRIX<T>(1, 0) {}
-    Vector(int size) : MATRIX<T>(size, 1) {}
-    Vector(const std::vector<T> &vect) : MATRIX<T>(vect.size(), 1)
+MATRIX Solve(const MATRIX &A, const MATRIX &B)
+{ // решение матричного ур-ния
+    MATRIX InvA = A.inv();
+    MATRIX res(InvA.rows_, B.columns_);
+    for (int i = 0; i < InvA.rows_; ++i)
     {
-        for (int i = 0; i < Vector<T>::getRowCount(); i++)
+        for (int j = 0; j < B.columns_; ++j)
         {
-            this->data[i][0] = vect[i];
+            res(i, j) = 0;
+            for (int k = 0; k < InvA.columns_; ++k)
+                res(i, j) += InvA(i, k) * B(k, j);
         }
     }
-    Vector(const MATRIX<T> &other) : MATRIX<T>(other)
+    return res;
+}
+
+std::ostream &operator<<(std::ostream &out, const MATRIX &m)
+{
+    for (const auto &row : m.data)
     {
-        if (other.getColumnCount() != 1)
-            std::cout << "Matrix must have one column." << std::endl;
+        for (const auto &elem : row)
+        {
+            out << elem << "\t";
+        }
+        out << std::endl;
+    }
+    return out;
+}
+
+class Vector : public MATRIX
+{
+public:
+    Vector() : MATRIX(1, 0) {}
+    Vector(int size) : MATRIX(size, 1) {}
+    Vector(const VECTOR &vect) : MATRIX(vect.size(), 1)
+    {
+        for (int i = 0; i < getRows(); i++)
+        {
+            data[i][0] = vect[i];
+        }
+    }
+    Vector(const MATRIX &other) : MATRIX(other)
+    {
+        if (other.getCols() != 1)
+            std::cout << "MATRIX must have one column." << std::endl;
     }
     ~Vector() {}
 
-    double &operator()(int i) { return this->data[i][0]; }
-    double operator()(int i) const { return this->data[i][0]; }
-    Vector operator+(const Vector &other) const { return static_cast<Vector>(MATRIX<T>::operator+(other)); }
-    Vector operator-(const Vector &other) const { return static_cast<Vector>(MATRIX<T>::operator-(other)); }
-    Vector operator*(double scalar) const { return static_cast<Vector>(MATRIX<T>::operator*(scalar)); }
-    Vector operator/(double scalar) const { return static_cast<Vector>(MATRIX<T>::operator/(scalar)); }
-    bool operator==(const Vector &other) const { return MATRIX<T>::operator==(other); }
-    bool operator!=(const Vector &other) const { return MATRIX<T>::operator!=(other); }
+    double &operator()(int i) { return data[i][0]; }
+    double operator()(int i) const { return data[i][0]; }
+    Vector operator+(const Vector &other) const { return static_cast<Vector>(MATRIX::operator+(other)); }
+    Vector operator-(const Vector &other) const { return static_cast<Vector>(MATRIX::operator-(other)); }
+    Vector operator*(double scalar) const { return static_cast<Vector>(MATRIX::operator*(scalar)); }
+    Vector operator/(double scalar) const { return static_cast<Vector>(MATRIX::operator/(scalar)); }
+    bool operator==(const Vector &other) const { return MATRIX::operator==(other); }
+    bool operator!=(const Vector &other) const { return MATRIX::operator!=(other); }
 };
 
 int main()
 {
-    std::vector<std::vector<double>> a = {{1, 3, 5}, {2, 4, 6}, {7, 8, 10}};
-    MATRIX<double> A(a);
-
-    std::cout << "Start Matrix: \n";
-    A.print();
-    std::cout << "\n";
-
-    std::cout << "Transopned matrix: \n";
-    A.TRANS().print();
-    std::cout << "\n";
-
-    std::cout << "Determinant A:\t" << A.det() << std::endl
+    std::vector<VECTOR> matr1 = {{3, 7}, {2, 8}};
+    MATRIX A(matr1);
+    std::cout << "MATRIX A:\n"
+              << A << std::endl;
+    std::cout << "det A:\t" << A.det() << std::endl
               << std::endl;
+    std::cout << "transp matrix A:\n"
+              << A.transp() << std::endl;
+    std::cout << "Minor matrix A:\n"
+              << A.MMatrix(0, 0) << std::endl;
+    std::cout << "inv matrix A:\n"
+              << A.inv() << std::endl;
 
-    std::cout << "MMatrix: \n";
-    A.MMatr().print();
+    std::vector<VECTOR> matr2 = {{4, 8}, {6, 2}};
+    MATRIX B(matr2);
+    std::cout << "MATRIX B: " << std::endl;
+    std::cout << B << std::endl;
 
-    std::cout << "alg add: \n";
-    A.adMatr().print();
-    
-    std::cout<< "inverse matrix: \n";
-    A.inv().print();
-    std::cout<<std::endl;
-    MATRIX<double> B = A.inv();
+    MATRIX X = Solve(A, B);
+    std::cout << "Solving the matrix eguation AX=B: " << std::endl;
+    std::cout << X << std::endl;
 
-    std::cout<<"proverka\n";
-    MATRIX<double> C = A*B;
-    C.print();
-    return 0;
+    VECTOR v = {1, 2, 3, 4, 5};
+    Vector vect(v);
+    std::cout << "Vector vect:\n"
+              << vect << std::endl;
 }
